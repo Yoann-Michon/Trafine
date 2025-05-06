@@ -1,0 +1,269 @@
+services:
+  # === API GATEWAY ===
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    env_file:
+      - ./api-gateway/.env
+    ports:
+      - "4000:4000"  
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      auth-service:
+        condition: service_started
+      incidents-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      navigation-service:
+        condition: service_started
+    networks:
+      - trafine-network
+    restart: always
+
+  # === USER SERVICE ===
+  user-service:
+    build:
+      context: ./user-service
+    container_name: user-service
+    env_file:
+      - ./user-service/.env
+    depends_on:
+      user-db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - trafine-network
+    restart: always
+
+  # === AUTH SERVICE ===
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: auth-service
+    env_file:
+      - ./auth-service/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    networks:
+      - trafine-network
+    restart: always
+
+  # === INCIDENTS SERVICE ===
+  incidents-service:
+    build:
+      context: ./incidents-service
+    container_name: incidents-service
+    ports:
+      - "4001:4001"  
+    env_file:
+      - ./incidents-service/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      incidents-db:
+        condition: service_started
+    networks:
+      - trafine-network
+    restart: always
+
+  # === NAVIGATOR SERVICE ===
+  navigation-service:
+    build:
+      context: ./navigation-service
+    container_name: navigation-service
+    env_file:
+      - ./navigation-service/.env
+    ports:
+      - "4002:4002"  
+    depends_on:
+      navigation-db:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - trafine-network
+    restart: always
+
+  # === NOTIFICATION SERVICE ===
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: notification-service
+    env_file:
+      - ./notification-service/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - trafine-network
+    restart: always
+
+  ## === FRONTEND ===
+  #frontend:
+  #  build:
+  #    context: ./frontend
+  #  container_name: frontend
+  #  ports:
+  #    - "3000:3000"
+  #  depends_on:
+  #    - api-gateway
+  #  networks:
+  #    - trafine-network
+  #  restart: always
+#
+  ## === GRAFANA ===
+  #grafana:
+  #  image: grafana/grafana:latest
+  #  container_name: grafana
+  #  ports:
+  #    - "3001:3000"
+  #  volumes:
+  #    - grafana-storage:/var/lib/grafana
+  #    - ./grafana/provisioning:/etc/grafana/provisioning
+  #  environment:
+  #    - GF_SECURITY_ADMIN_USER=admin
+  #    - GF_SECURITY_ADMIN_PASSWORD=admin
+  #    - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+  #  networks:
+  #    - trafine-network
+  #  restart: always
+
+  # === PROMETHEUS ===
+  #prometheus:
+  #  image: prom/prometheus:latest
+  #  container_name: prometheus
+  #  ports:
+  #    - "9090:9090"
+  #  volumes:
+  #    - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  #    - prometheus-data:/prometheus
+  #  command:
+  #    - '--config.file=/etc/prometheus/prometheus.yml'
+  #    - '--storage.tsdb.path=/prometheus'
+  #    - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+  #    - '--web.console.templates=/usr/share/prometheus/consoles'
+  #  networks:
+  #    - trafine-network
+  #  restart: always
+    
+  # === POSTGRES DB ===
+  user-db:
+    image: postgres:17
+    container_name: user-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user
+      POSTGRES_DB: user_db
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - trafine-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d user_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  navigation-db:
+    image: postgres:17
+    container_name: navigation-db
+    environment:
+      POSTGRES_USER: navigation
+      POSTGRES_PASSWORD: navigation
+      POSTGRES_DB: navigation_db
+    volumes:
+      - navigation-db-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - trafine-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U navigation -d navigation_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  
+  # === MONGO DB ===
+  incidents-db:
+    image: mongo:latest
+    container_name: incidents-db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: incidents
+      MONGO_INITDB_ROOT_PASSWORD: incidents
+      MONGO_INITDB_DATABASE: incidents_db
+    ports:
+      - "27017:27017"
+    networks:
+      - trafine-network 
+    restart: always
+    volumes:
+      - incidents-db-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  rabbitmq:
+    image: "rabbitmq:3-management-alpine"
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "15692:15692" 
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_MANAGEMENT_PROMETHEUS_RET U RN_PER_OBJECT_METRICS: "true"
+      RABBITMQ_PROMETHEUS_RETURN_PER_OBJECT_METRICS: "true"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - trafine-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+# === VOLUMES ===
+volumes:
+  navigation-db-data:
+    driver: local
+  incidents-db-data:
+    driver: local
+  user-db-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+  grafana-storage:
+    driver: local
+  prometheus-data:
+    driver: local
+
+# === NETWORKS ===
+networks:
+  trafine-network:
+    driver: bridge
