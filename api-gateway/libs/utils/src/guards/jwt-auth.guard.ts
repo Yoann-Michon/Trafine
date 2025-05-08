@@ -20,8 +20,7 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic) {
       return true;
     }
-      
-    const request = context.switchToHttp().getRequest();
+      const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromCookie(request);
     
     if (!token) {

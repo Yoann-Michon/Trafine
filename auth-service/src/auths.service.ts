@@ -4,7 +4,6 @@ import { JwtService } from '@nestjs/jwt';
 import { ClientProxy } from '@nestjs/microservices';
 import { LoginUserDto } from './dto/login.dto';
 import { CreateAuthDto } from './dto/create-auth.dto';
-import { log } from 'console';
 
 @Injectable()
 export class AuthsService {
@@ -25,10 +24,8 @@ export class AuthsService {
 
   async login(loginDto: LoginUserDto) {
     try {
-      log(loginDto);
       
       const user = await this.validateUser(loginDto);
-      log('User:', user);
       if (!user) {
         return { message: 'Invalid credentials' };
       }
@@ -64,7 +61,6 @@ export class AuthsService {
     try {
       const providerId = profile.id;
   
-      // Recherche utilisateur par ID du provider
       let user = await firstValueFrom(
         this.userClient.send('findByProviderData', {
           authProvider: provider,
@@ -72,7 +68,6 @@ export class AuthsService {
         })
       );
   
-      // Sinon, recherche par email
       if (!user && profile.emails?.length > 0) {
         const email = profile.emails[0].value;
         user = await firstValueFrom(
@@ -80,7 +75,6 @@ export class AuthsService {
         );
   
         if (user) {
-          // Mise à jour du lien avec l'auth provider
           const updateData = {
             authProvider: provider,
             authProviderId: providerId,
@@ -89,7 +83,6 @@ export class AuthsService {
             this.userClient.send('updateUser', { id: user.id, updateData })
           );
         } else {
-          // Création d'un nouvel utilisateur
           const newUserData = {
             email,
             username: email.split('@')[0],
@@ -100,7 +93,6 @@ export class AuthsService {
             this.userClient.send('createUser', newUserData)
           );
   
-          // Émission d'un événement
           this.userClient.emit('auth.oauth_user_registered', {
             userId: user.id,
             provider,

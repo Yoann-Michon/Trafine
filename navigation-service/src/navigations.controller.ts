@@ -58,7 +58,7 @@ export class NavigationsController {
   }
 
   @MessagePattern('reverseGeocode')
-  async reverseGeocode(@Payload() data: { lat: string, lon: string }) {
+  async reverseGeocode(@Payload() data: { lat: number, lon: number }) {
     return this.navigationsService.reverseGeocode(data.lat, data.lon);
   }
 
@@ -85,5 +85,15 @@ export class NavigationsController {
   @MessagePattern('getOfflineRouteData')
   async getOfflineRouteData(@Payload() data: { userId: string, navigationIds?: string[] }) {
     return this.navigationsService.getOfflineRouteData(data.userId, data.navigationIds);
+  }
+  
+  @MessagePattern('findNearbyIncidents')
+  async findNearbyIncidents(@Payload() data: { longitude: number, latitude: number, radius?: number }) {
+    return this.navigationsService.findNearbyIncidents(data.longitude, data.latitude, data.radius);
+  }
+  
+  @MessagePattern('checkIncidentsAlongRoute')
+  async checkIncidentsAlongRoute(@Payload() routeData: any) {
+    return this.navigationsService.checkIncidentsAlongRoute(routeData);
   }
 }

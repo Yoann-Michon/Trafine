@@ -3,7 +3,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { HealthController } from 'src/health/health.controller';
 import { UserController } from './user/user.controller';
 import { IncidentsController } from './incident/incident.controller';
 import { UtilsModule } from 'utils/utils';
@@ -80,7 +79,7 @@ import { NavigationController } from './navigation/navigation.controller';
         }),
       },
     ])],
-      controllers: [AppController,HealthController, UserController, IncidentsController, NavigationController],
+      controllers: [AppController, UserController, IncidentsController, NavigationController],
       providers: [AppService],
 })
 export class AppModule { }

@@ -16,7 +16,15 @@ export class IncidentsController {
   }
 
   @Get()
-  async getAllIncidents() {
+  async getAllIncidents(
+    @Query('combined') combined: boolean = true,
+    @Query('bbox') boundingBox?: string
+  ) {
+    if (combined) {
+      return await firstValueFrom(
+        this.incidentClient.send('findAllIncidentsCombined', boundingBox ?? null),
+      );
+    }
     return await firstValueFrom(
       this.incidentClient.send('findAllIncidents', {}),
     );
@@ -34,16 +42,46 @@ export class IncidentsController {
     @Query('longitude') longitude: number,
     @Query('latitude') latitude: number,
     @Query('radius') radius?: number,
+    @Query('combined') combined: boolean = true,
     @Query() filters?: any,
   ) {
+    const payload = {
+      longitude: Number(longitude),
+      latitude: Number(latitude),
+      radius: radius ? Number(radius) : undefined,
+      filters: { ...filters },
+    };
+
+    if (combined) {
+      return await firstValueFrom(
+        this.incidentClient.send('findNearbyIncidentsCombined', payload),
+      );
+    }
     return await firstValueFrom(
-      this.incidentClient.send('findNearbyIncidents', {
-        longitude,
-        latitude,
-        radius,
-        filters,
-      }),
+      this.incidentClient.send('findNearbyIncidents', payload),
     );
+  }
+
+  @Get('route')
+  async getIncidentsAlongRoute(
+    @Query('points') pointsString: string,
+    @Query('radius') radius: number = 1000,
+  ) {
+    try {
+      const points = pointsString.split(';').map(point => {
+        const [longitude, latitude] = point.split(',').map(Number);
+        return { longitude, latitude };
+      });
+
+      return await firstValueFrom(
+        this.incidentClient.send('findIncidentsAlongRoute', {
+          points,
+          radius: Number(radius),
+        }),
+      );
+    } catch (error) {
+      throw new Error(`Invalid points format. Expected: longitude1,latitude1;longitude2,latitude2;... (${error.message})`);
+    }
   }
 
   @Get('user/:userId/reported')

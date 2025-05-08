@@ -3,7 +3,9 @@ import { IncidentsService } from './incidents.service';
 import { Server, Socket } from 'socket.io';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { UpdateIncidentDto } from './dto/update-incident.dto';
-import { Logger } from '@nestjs/common';
+import { Logger, UseGuards, UseInterceptors } from '@nestjs/common';
+import { WsJwtAuthGuard, WsRolesGuard } from 'libs/utils/src';
+import { WsLoggingInterceptor } from 'libs/utils/src/guards/ws-logging.interceptor';
 
 @WebSocketGateway({
   namespace: 'incidents', 
@@ -12,6 +14,8 @@ import { Logger } from '@nestjs/common';
     credentials: true
   }
 })
+@UseGuards(WsJwtAuthGuard, WsRolesGuard)
+@UseInterceptors(WsLoggingInterceptor)
 export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(IncidentGateway.name);
   
@@ -43,10 +47,21 @@ export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('findAllIncidents')
   async handleFindAll() {
     try {
-      const incidents = await this.incidentsService.findAll();
+      const incidents = await this.incidentsService.findAllCombined();
       return { success: true, data: incidents };
     } catch (error) {
       this.logger.error(`Error finding incidents: ${error.message}`, error.stack);
+      return { success: false, error: error.message };
+    }
+  }
+
+  @SubscribeMessage('findDatabaseIncidents')
+  async handleFindDatabaseOnly() {
+    try {
+      const incidents = await this.incidentsService.findAll();
+      return { success: true, data: incidents };
+    } catch (error) {
+      this.logger.error(`Error finding database incidents: ${error.message}`, error.stack);
       return { success: false, error: error.message };
     }
   }
@@ -66,11 +81,8 @@ export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect
   async handleUpdate(@MessageBody() updateIncidentDto: UpdateIncidentDto) {
     try {
       const updated = await this.incidentsService.update(updateIncidentDto.id, updateIncidentDto);
-      if (updated) {
-        this.server.emit('incidentUpdated', updated);
-        return { success: true, data: updated };
-      }
-      return { success: false, error: 'Incident not found' };
+      this.server.emit('incidentUpdated', updated);
+      return { success: true, data: updated };
     } catch (error) {
       this.logger.error(`Error updating incident: ${error.message}`, error.stack);
       return { success: false, error: error.message };
@@ -80,12 +92,9 @@ export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('deleteIncident')
   async handleDelete(@MessageBody() id: string) {
     try {
-      const success = await this.incidentsService.remove(id);
-      if (success) {
-        this.server.emit('incidentDeleted', id);
-        return { success: true };
-      }
-      return { success: false, error: 'Incident not found' };
+      await this.incidentsService.remove(id);
+      this.server.emit('incidentDeleted', id);
+      return { success: true };
     } catch (error) {
       this.logger.error(`Error deleting incident ${id}: ${error.message}`, error.stack);
       return { success: false, error: error.message };
@@ -96,10 +105,34 @@ export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect
   async handleFindNearby(@MessageBody() payload: { longitude: number; latitude: number; radius?: number; filters?: any }) {
     try {
       const { longitude, latitude, radius, filters } = payload;
-      const incidents = await this.incidentsService.findNearbyIncidents(longitude, latitude, radius, filters);
+      const incidents = await this.incidentsService.findNearbyIncidentsCombined(longitude, latitude, radius, filters);
       return { success: true, data: incidents };
     } catch (error) {
       this.logger.error(`Error finding nearby incidents: ${error.message}`, error.stack);
+      return { success: false, error: error.message };
+    }
+  }
+
+  @SubscribeMessage('findNearbyDatabaseIncidents')
+  async handleFindNearbyDatabase(@MessageBody() payload: { longitude: number; latitude: number; radius?: number; filters?: any }) {
+    try {
+      const { longitude, latitude, radius, filters } = payload;
+      const incidents = await this.incidentsService.findNearbyIncidents(longitude, latitude, radius, filters);
+      return { success: true, data: incidents };
+    } catch (error) {
+      this.logger.error(`Error finding nearby database incidents: ${error.message}`, error.stack);
+      return { success: false, error: error.message };
+    }
+  }
+
+  @SubscribeMessage('findIncidentsAlongRoute')
+  async handleFindAlongRoute(@MessageBody() payload: { points: { longitude: number; latitude: number }[]; radius: number }) {
+    try {
+      const { points, radius } = payload;
+      const incidents = await this.incidentsService.findIncidentsAlongRoute(points, radius);
+      return { success: true, data: incidents };
+    } catch (error) {
+      this.logger.error(`Error finding incidents along route: ${error.message}`, error.stack);
       return { success: false, error: error.message };
     }
   }

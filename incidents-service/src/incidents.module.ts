@@ -5,12 +5,28 @@ import { IncidentsController } from './incidents.controller';
 import { IncidentsService } from './incidents.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { IncidentGateway } from './incidents.gateway';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { TomTomService } from './tomtom.service';
 
 
 
 @Module({
   imports: [
     ConfigModule.forRoot({ envFilePath: '.env' }),
+    ClientsModule.registerAsync([
+      {
+        name: 'USER_SERVICE',
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: async (configService: ConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [configService.get<string>('RABBITMQ_HOST')!],
+            queue: configService.get<string>('RABBITMQ_USER_QUEUE'),
+            queueOptions: { durable: true },
+          },
+        }),
+      },]),
     TypeOrmModule.forFeature([Incident]),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -30,6 +46,6 @@ import { IncidentGateway } from './incidents.gateway';
     
   ],
   controllers: [IncidentsController],
-  providers: [IncidentsService, IncidentGateway],
+  providers: [IncidentsService, IncidentGateway,TomTomService],
 })
 export class IncidentModule { }

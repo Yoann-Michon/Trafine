@@ -8,19 +8,19 @@ services:
       - ./api-gateway/.env
     ports:
       - "4000:4000"  
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      user-service:
-        condition: service_started
-      auth-service:
-        condition: service_started
-      incidents-service:
-        condition: service_started
-      notification-service:
-        condition: service_started
-      navigation-service:
-        condition: service_started
+    #depends_on:
+    #  rabbitmq:
+    #    condition: service_healthy
+    #  user-service:
+    #    condition: service_started
+    #  auth-service:
+    #    condition: service_started
+    #  incidents-service:
+    #    condition: service_started
+    #  notification-service:
+    #    condition: service_started
+    #  navigation-service:
+    #    condition: service_started
     networks:
       - trafine-network
     restart: always

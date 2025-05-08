@@ -1,125 +1,75 @@
-import { Controller, Logger } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { IncidentsService } from './incidents.service';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { UpdateIncidentDto } from './dto/update-incident.dto';
 
 @Controller()
 export class IncidentsController {
-  private readonly logger = new Logger(IncidentsController.name);
-  
   constructor(private readonly incidentsService: IncidentsService) {}
 
   @MessagePattern('createIncident')
-  async create(@Payload() createIncidentDto: CreateIncidentDto) {
-    try {
-      return await this.incidentsService.create(createIncidentDto);
-    } catch (error) {
-      this.logger.error(`Error creating incident: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  create(@Payload() createIncidentDto: CreateIncidentDto) {
+    return this.incidentsService.create(createIncidentDto);
   }
 
   @MessagePattern('findAllIncidents')
-  async findAll() {
-    try {
-      return await this.incidentsService.findAll();
-    } catch (error) {
-      this.logger.error(`Error finding all incidents: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  findAll() {
+    return this.incidentsService.findAll();
+  }
+
+  @MessagePattern('findAllIncidentsCombined')
+  findAllCombined(@Payload() boundingBox?: string) {
+    return this.incidentsService.findAllCombined(boundingBox);
   }
 
   @MessagePattern('findActiveIncidents')
-  async findActive() {
-    try {
-      return await this.incidentsService.findActiveIncidents();
-    } catch (error) {
-      this.logger.error(`Error finding active incidents: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  findActive() {
+    return this.incidentsService.findActiveIncidents();
   }
 
   @MessagePattern('findOneIncident')
-  async findOne(@Payload() id: string) {
-    try {
-      const incident = await this.incidentsService.findOne(id);
-      if (!incident) {
-        throw new RpcException('Incident not found');
-      }
-      return incident;
-    } catch (error) {
-      this.logger.error(`Error finding incident ${id}: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  findOne(@Payload() id: string) {
+    return this.incidentsService.findOne(id);
   }
 
   @MessagePattern('updateIncident')
-  async update(@Payload() updateIncidentDto: UpdateIncidentDto) {
-    try {
-      const updated = await this.incidentsService.update(updateIncidentDto.id, updateIncidentDto);
-      if (!updated) {
-        throw new RpcException('Incident not found');
-      }
-      return updated;
-    } catch (error) {
-      this.logger.error(`Error updating incident: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  update(@Payload() updateIncidentDto: UpdateIncidentDto) {
+    return this.incidentsService.update(updateIncidentDto.id, updateIncidentDto);
   }
 
   @MessagePattern('removeIncident')
-  async remove(@Payload() id: string) {
-    try {
-      const result = await this.incidentsService.remove(id);
-      if (!result) {
-        throw new RpcException('Incident not found');
-      }
-      return result;
-    } catch (error) {
-      this.logger.error(`Error removing incident ${id}: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  remove(@Payload() id: string) {
+    return this.incidentsService.remove(id);
   }
 
   @MessagePattern('findNearbyIncidents')
-  async findNearby(@Payload() data: { longitude: number; latitude: number; radius?: number; filters?: any }) {
-    try {
-      const { longitude, latitude, radius, filters } = data;
-      return await this.incidentsService.findNearbyIncidents(longitude, latitude, radius, filters);
-    } catch (error) {
-      this.logger.error(`Error finding nearby incidents: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  findNearby(@Payload() data: { longitude: number; latitude: number; radius?: number; filters?: any }) {
+    return this.incidentsService.findNearbyIncidents(data.longitude, data.latitude, data.radius, data.filters);
+  }
+
+  @MessagePattern('findNearbyIncidentsCombined')
+  findNearbyCombined(@Payload() data: { longitude: number; latitude: number; radius?: number; filters?: any }) {
+    return this.incidentsService.findNearbyIncidentsCombined(data.longitude, data.latitude, data.radius, data.filters);
+  }
+
+  @MessagePattern('findIncidentsAlongRoute')
+  findAlongRoute(@Payload() data: { points: { longitude: number; latitude: number }[]; radius: number }) {
+    return this.incidentsService.findIncidentsAlongRoute(data.points, data.radius);
   }
 
   @MessagePattern('findByReportedUser')
-  async findByReportedUser(@Payload() userId: string) {
-    try {
-      return await this.incidentsService.findByReportedUser(userId);
-    } catch (error) {
-      this.logger.error(`Error finding incidents reported by user ${userId}: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  findByReportedUser(@Payload() userId: string) {
+    return this.incidentsService.findByReportedUser(userId);
   }
 
   @MessagePattern('findConfirmedByUser')
-  async findConfirmedByUser(@Payload() userId: string) {
-    try {
-      return await this.incidentsService.findConfirmedByUser(userId);
-    } catch (error) {
-      this.logger.error(`Error finding incidents confirmed by user ${userId}: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  findConfirmedByUser(@Payload() userId: string) {
+    return this.incidentsService.findConfirmedByUser(userId);
   }
 
   @MessagePattern('findRejectedByUser')
-  async findRejectedByUser(@Payload() userId: string) {
-    try {
-      return await this.incidentsService.findRejectedByUser(userId);
-    } catch (error) {
-      this.logger.error(`Error finding incidents rejected by user ${userId}: ${error.message}`, error.stack);
-      throw new RpcException(error.message);
-    }
+  findRejectedByUser(@Payload() userId: string) {
+    return this.incidentsService.findRejectedByUser(userId);
   }
 }

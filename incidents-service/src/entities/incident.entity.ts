@@ -40,9 +40,6 @@ export class Incident {
   @Column({ nullable: true })
   resolvedAt?: Date;
 
-  @Column()
-  source: string;
-
   @Column({ default: true })
   isActive: boolean; 
 }

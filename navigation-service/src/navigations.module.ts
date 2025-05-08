@@ -9,9 +9,11 @@ import { ShareNavigationService } from './sharedNavigations/sharedNavigations.se
 import { Navigation } from './entities/navigation.entity';
 import { SharedNavigation } from './entities/shareNavigation.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { UtilsModule } from 'libs/utils/src';
 
 @Module({
   imports: [
+    UtilsModule,
     ConfigModule.forRoot({ envFilePath: '.env' }),
     TypeOrmModule.forFeature([Navigation,SharedNavigation]),
         TypeOrmModule.forRootAsync({

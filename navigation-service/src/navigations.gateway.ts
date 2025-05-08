@@ -64,6 +64,14 @@ export class NavigationsGateway implements OnGatewayConnection, OnGatewayDisconn
                 data: routeData
             });
             
+            if (routeData.incidents && routeData.incidents.length > 0) {
+                client.emit('incidentsOnRoute', {
+                    navigationId: routeData.navigationId,
+                    incidents: routeData.incidents,
+                    timestamp: Date.now()
+                });
+            }
+            
             return { success: true, data: routeData };
         } catch (error) {
             this.logger.error(`Error calculating route: ${error.message}`);
@@ -76,7 +84,7 @@ export class NavigationsGateway implements OnGatewayConnection, OnGatewayDisconn
     }
 
     @SubscribeMessage('updatePosition')
-    handleUpdatePosition(client: Socket, payload: { 
+    async handleUpdatePosition(client: Socket, payload: { 
         navigationId: string, 
         position: { lat: number, lng: number },
         timestamp: number
@@ -89,6 +97,35 @@ export class NavigationsGateway implements OnGatewayConnection, OnGatewayDisconn
                 message: 'Invalid position data'
             });
             return { success: false, error: 'Invalid position data' };
+        }
+        
+        // Vérifier les incidents à proximité de la position actuelle
+        try {
+            const nearbyIncidents = await this.navigationsService.findNearbyIncidents(
+                payload.position.lng,
+                payload.position.lat,
+                1000
+            );
+            
+            if (nearbyIncidents && nearbyIncidents.length > 0) {
+                client.emit('nearbyIncidents', {
+                    navigationId: payload.navigationId,
+                    incidents: nearbyIncidents,
+                    position: payload.position,
+                    timestamp: Date.now()
+                });
+                
+                const severeIncidents = nearbyIncidents.filter(incident => incident.severity >= 3);
+                if (severeIncidents.length > 0) {
+                    client.emit('recalculationSuggested', {
+                        navigationId: payload.navigationId,
+                        reason: `${severeIncidents.length} incident(s) sévère(s) à proximité`,
+                        timestamp: Date.now()
+                    });
+                }
+            }
+        } catch (error) {
+            this.logger.error(`Error checking nearby incidents: ${error.message}`);
         }
         
         this.sendRouteUpdate(payload.navigationId, payload.position);
@@ -174,12 +211,49 @@ export class NavigationsGateway implements OnGatewayConnection, OnGatewayDisconn
                 timestamp: Date.now()
             });
             
+            if (routeData.incidents && routeData.incidents.length > 0) {
+                client.emit('incidentsOnRoute', {
+                    navigationId: payload.navigationId,
+                    incidents: routeData.incidents,
+                    timestamp: Date.now()
+                });
+            }
+            
             return { success: true, data: routeData };
         } catch (error) {
             this.logger.error(`Error recalculating route: ${error.message}`);
             client.emit('error', {
                 type: 'error',
                 message: `Error recalculating route: ${error.message}`
+            });
+            return { success: false, error: error.message };
+        }
+    }
+    
+    @SubscribeMessage('checkIncidentsOnRoute')
+    async handleCheckIncidentsOnRoute(client: Socket, payload: { navigationId: string }) {
+        this.logger.log(`Checking incidents for route ${payload.navigationId}`);
+        try {
+            const navigation = await this.navigationsService.findOne(payload.navigationId);
+            
+            if ( !navigation?.routeData) {
+                throw new Error('Invalid navigation or route data missing');
+            }
+            
+            const incidents = await this.navigationsService.checkIncidentsAlongRoute(navigation.routeData);
+            
+            client.emit('incidentsOnRoute', {
+                navigationId: payload.navigationId,
+                incidents,
+                timestamp: Date.now()
+            });
+            
+            return { success: true, incidents };
+        } catch (error) {
+            this.logger.error(`Error checking incidents: ${error.message}`);
+            client.emit('error', {
+                type: 'error',
+                message: `Error checking incidents: ${error.message}`
             });
             return { success: false, error: error.message };
         }
