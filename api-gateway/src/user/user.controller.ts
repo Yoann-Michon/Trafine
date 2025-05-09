@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Inject, Param, Patch, Post, Body, UseGuards, Request, Req } from "@nestjs/common";
+import { Controller, Delete, Get, Inject, Param, Patch, Post, Body, UseGuards, Req } from "@nestjs/common";
 import { ClientProxy } from "@nestjs/microservices";
 import { firstValueFrom } from "rxjs";
 import { JwtAuthGuard, Public, Role, Roles, RolesGuard } from "utils/utils";

@@ -1,21 +1,28 @@
 import {  Module } from '@nestjs/common';
-import { NavigationsService } from './navigations.service';
 import { NavigationsController } from './navigations.controller';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { NavigationsGateway } from './navigations.gateway';
-import { ShareNavigationController } from './sharedNavigations/shareNavigations.controller';
-import { ShareNavigationService } from './sharedNavigations/sharedNavigations.service';
-import { Navigation } from './entities/navigation.entity';
-import { SharedNavigation } from './entities/shareNavigation.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UtilsModule } from 'libs/utils/src';
+import { Route } from './entities/route.entity';
+import { RoutesService } from './navigations.service';
+import { TomtomService } from './tomtom/tomtom.service';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
-    UtilsModule,
     ConfigModule.forRoot({ envFilePath: '.env' }),
-    TypeOrmModule.forFeature([Navigation,SharedNavigation]),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: configService.get<string>('JWT_EXPIRATION') },
+      }),
+    }),
+    UtilsModule,
+    TypeOrmModule.forFeature([Route]),
         TypeOrmModule.forRootAsync({
           imports: [ConfigModule],
           inject: [ConfigService],
@@ -26,7 +33,7 @@ import { UtilsModule } from 'libs/utils/src';
             username: configService.get<string>("DB_USERNAME"),
             password: configService.get<string>("DB_PASSWORD"),
             database: configService.get<string>("DB_NAME"),
-            entities: [Navigation,SharedNavigation],
+            entities: [Route],
             synchronize: true,
           }),
         }),
@@ -72,8 +79,8 @@ import { UtilsModule } from 'libs/utils/src';
       },
     ]),
   ],
-  controllers: [NavigationsController,ShareNavigationController],
-  providers: [NavigationsService, NavigationsGateway, ShareNavigationService],
+  controllers: [NavigationsController],
+  providers: [RoutesService, NavigationsGateway,TomtomService],
 })
 export class NavigationsModule{
 }

@@ -16,6 +16,18 @@ export enum RoadIncidentType {
     REJECTED = 'rejected'      
   }
 
+  export type GeometryType = 'Point' | 'LineString' | 'MultiLineString';
+
+  export type Coordinates = 
+    | [number, number]                  
+    | [number, number][]                
+    | [number, number][][];            
+  
+  export interface GeoJsonGeometry {
+    type: GeometryType;
+    coordinates: Coordinates;
+  }
+
   export const INCIDENT_TYPE_METADATA= {
     [RoadIncidentType.OBSTACLE]: {
       label: 'Obstacle',

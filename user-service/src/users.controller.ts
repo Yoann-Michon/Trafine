@@ -57,15 +57,7 @@ export class UsersController {
   }
 
   @MessagePattern('findUserById')
-  async findOneById(@Payload() payload: { id: string; user: Partial<User> }) {
-    const { id, user } = payload;
-
-    if (user.role !== Role.ADMIN && user.id !== id) {
-      throw new RpcException({
-        code: HttpStatus.FORBIDDEN,
-        message: 'Access denied',
-      });
-    }
+  async findOneById(@Payload() id: string) {
 
     try {
       const userFound = await this.usersService.findOneById(id);

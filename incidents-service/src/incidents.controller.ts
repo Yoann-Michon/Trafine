@@ -9,8 +9,9 @@ export class IncidentsController {
   constructor(private readonly incidentsService: IncidentsService) {}
 
   @MessagePattern('createIncident')
-  create(@Payload() createIncidentDto: CreateIncidentDto) {
-    return this.incidentsService.create(createIncidentDto);
+  create(@Payload() payload:{createIncidentDto: CreateIncidentDto , userId: string}) {
+    payload.createIncidentDto.reportedBy=payload.userId
+    return this.incidentsService.create(payload.createIncidentDto);
   }
 
   @MessagePattern('findAllIncidents')
@@ -34,13 +35,19 @@ export class IncidentsController {
   }
 
   @MessagePattern('updateIncident')
-  update(@Payload() updateIncidentDto: UpdateIncidentDto) {
-    return this.incidentsService.update(updateIncidentDto.id, updateIncidentDto);
+  update(@Payload() payload: UpdateIncidentDto & { userId: string, userRole: string }) {
+    const { userId, userRole, ...updateData } = payload;
+    return this.incidentsService.update(
+      payload.id, 
+      { ...updateData, id: payload.id }, 
+      userId, 
+      userRole
+    );
   }
 
   @MessagePattern('removeIncident')
-  remove(@Payload() id: string) {
-    return this.incidentsService.remove(id);
+  remove(@Payload() payload: { id: string, userId: string, userRole: string }) {
+    return this.incidentsService.remove(payload.id, payload.userId, payload.userRole);
   }
 
   @MessagePattern('findNearbyIncidents')

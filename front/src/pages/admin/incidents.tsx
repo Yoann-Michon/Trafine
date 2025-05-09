@@ -1,134 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Paper,
   Typography,
   Grid,
-  Card,
-  CardContent,
-  CardActions,
+  Paper,
   Button,
   IconButton,
-  Chip,
-  Badge,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Tabs,
-  Tab,
   CircularProgress,
-  Tooltip,
   Snackbar,
-  Alert,
-  Divider
+  Alert
 } from '@mui/material';
 import {
-  Check as CheckIcon,
-  Close as CloseIcon,
-  Delete as DeleteIcon,
-  MoreVert as MoreVertIcon,
   FilterList as FilterListIcon,
   Map as MapIcon,
-  List as ListIcon,
-  Warning as WarningIcon,
-  Traffic as TrafficIcon,
-  Construction as ConstructionIcon,
-  LocalPolice as LocalPoliceIcon,
-  DirectionsCar as DirectionsCarIcon
+  List as ListIcon
 } from '@mui/icons-material';
-import { getIncidents, updateIncident, deleteIncident } from '../services/incident-service';
-import IncidentMap from '../components/incidents/IncidentMap';
-import IncidentDetailsDialog from '../components/incidents/IncidentDetailsDialog';
 
-// Fonction utilitaire pour le formatage de la date
-const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  return date.toLocaleString();
-};
+const IncidentsManagement: React.FC = () => {
+  // Utilisation du hook personnalisé
+  const { 
+    incidents, 
+    isLoading, 
+    error: incidentsError,
+    fetchIncidents,
+    updateIncident,
+    deleteIncident
+  } = useIncidents();
 
-// Fonction pour obtenir l'icône du type d'incident
-const getIncidentIcon = (type) => {
-  switch (type) {
-    case 'accident':
-      return <WarningIcon color="error" />;
-    case 'traffic_jam':
-      return <TrafficIcon color="warning" />;
-    case 'road_closed':
-      return <ConstructionIcon color="error" />;
-    case 'police':
-      return <LocalPoliceIcon color="info" />;
-    case 'obstacle':
-      return <DirectionsCarIcon color="warning" />;
-    default:
-      return <WarningIcon />;
-  }
-};
-
-// Fonction pour obtenir le libellé du type d'incident
-const getIncidentTypeLabel = (type) => {
-  switch (type) {
-    case 'accident':
-      return 'Accident';
-    case 'traffic_jam':
-      return 'Embouteillage';
-    case 'road_closed':
-      return 'Route fermée';
-    case 'police':
-      return 'Contrôle policier';
-    case 'obstacle':
-      return 'Obstacle';
-    default:
-      return type;
-  }
-};
-
-const IncidentsManagement = () => {
-  // États pour les incidents
-  const [incidents, setIncidents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('list'); // 'list' ou 'map'
-  const [selectedIncident, setSelectedIncident] = useState(null);
+  // États locaux
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  
-  // États pour les filtres
+  const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
+  const [notification, setNotification] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'info' | 'warning' | 'error';
+  }>({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
+
+  // État des filtres
   const [filters, setFilters] = useState({
     type: 'all',
     status: 'all',
     period: 'all'
   });
-  const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
-  
-  // État pour les notifications
-  const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
 
-  // Charger les incidents
+  // Charger les incidents au montage
   useEffect(() => {
-    const loadIncidents = async () => {
-      setLoading(true);
-      try {
-        const response = await getIncidents();
-        setIncidents(response.incidents);
-      } catch (error) {
-        console.error('Erreur lors du chargement des incidents:', error);
-        setNotification({
-          open: true,
-          message: 'Erreur lors du chargement des incidents',
-          severity: 'error'
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadIncidents();
-  }, []);
+    fetchIncidents();
+  }, [fetchIncidents]);
 
   // Filtrer les incidents
   const filteredIncidents = incidents.filter(incident => {
@@ -161,13 +86,13 @@ const IncidentsManagement = () => {
   });
 
   // Ouvrir le dialogue de détails d'un incident
-  const handleOpenDetails = (incident) => {
+  const handleOpenDetails = (incident: Incident) => {
     setSelectedIncident(incident);
     setDetailsOpen(true);
   };
 
-  // Ouvrir le dialogue de confirmation de suppression
-  const handleOpenDeleteDialog = (incident) => {
+  // Ouvrir le dialogue de suppression
+  const handleOpenDeleteDialog = (incident: Incident) => {
     setSelectedIncident(incident);
     setDeleteDialogOpen(true);
   };
@@ -180,12 +105,10 @@ const IncidentsManagement = () => {
   };
 
   // Valider un incident
-  const handleValidateIncident = async (incidentId) => {
+  const handleValidateIncident = async (incidentId: string) => {
     try {
       await updateIncident(incidentId, { status: 'validated' });
-      setIncidents(incidents.map(inc => 
-        inc.id === incidentId ? { ...inc, status: 'validated' } : inc
-      ));
+      await fetchIncidents(); // Recharger les incidents
       setNotification({
         open: true,
         message: 'Incident validé avec succès',
@@ -202,12 +125,10 @@ const IncidentsManagement = () => {
   };
 
   // Rejeter un incident
-  const handleRejectIncident = async (incidentId) => {
+  const handleRejectIncident = async (incidentId: string) => {
     try {
       await updateIncident(incidentId, { status: 'rejected' });
-      setIncidents(incidents.map(inc => 
-        inc.id === incidentId ? { ...inc, status: 'rejected' } : inc
-      ));
+      await fetchIncidents(); // Recharger les incidents
       setNotification({
         open: true,
         message: 'Incident rejeté avec succès',
@@ -224,12 +145,10 @@ const IncidentsManagement = () => {
   };
 
   // Marquer un incident comme résolu
-  const handleResolveIncident = async (incidentId) => {
+  const handleResolveIncident = async (incidentId: string) => {
     try {
       await updateIncident(incidentId, { status: 'resolved' });
-      setIncidents(incidents.map(inc => 
-        inc.id === incidentId ? { ...inc, status: 'resolved' } : inc
-      ));
+      await fetchIncidents(); // Recharger les incidents
       setNotification({
         open: true,
         message: 'Incident marqué comme résolu',
@@ -251,7 +170,7 @@ const IncidentsManagement = () => {
     
     try {
       await deleteIncident(selectedIncident.id);
-      setIncidents(incidents.filter(inc => inc.id !== selectedIncident.id));
+      await fetchIncidents(); // Recharger les incidents
       setNotification({
         open: true,
         message: 'Incident supprimé avec succès',
@@ -269,13 +188,22 @@ const IncidentsManagement = () => {
   };
 
   // Appliquer les filtres
-  const handleApplyFilters = (newFilters) => {
+  const handleApplyFilters = (newFilters: typeof filters) => {
     setFilters(newFilters);
     setFiltersDialogOpen(false);
   };
 
-  // Changer de mode d'affichage (liste/carte)
-  const handleChangeViewMode = (mode) => {
+  // Réinitialiser les filtres
+  const handleResetFilters = () => {
+    setFilters({
+      type: 'all',
+      status: 'all',
+      period: 'all'
+    });
+  };
+
+  // Changer le mode d'affichage
+  const handleChangeViewMode = (mode: 'list' | 'map') => {
     setViewMode(mode);
   };
 
@@ -283,88 +211,6 @@ const IncidentsManagement = () => {
   const handleCloseNotification = () => {
     setNotification({ ...notification, open: false });
   };
-
-  // Rendu des incidents en mode liste
-  const renderIncidentsList = () => (
-    <Grid container spacing={3}>
-      {filteredIncidents.map(incident => (
-        <Grid item xs={12} sm={6} md={4} key={incident.id}>
-          <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <CardContent sx={{ flexGrow: 1 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Box display="flex" alignItems="center">
-                  {getIncidentIcon(incident.type)}
-                  <Typography variant="h6" component="div" sx={{ ml: 1 }}>
-                    {getIncidentTypeLabel(incident.type)}
-                  </Typography>
-                </Box>
-                <Chip 
-                  label={incident.status} 
-                  color={
-                    incident.status === 'validated' ? 'success' :
-                    incident.status === 'rejected' ? 'error' :
-                    incident.status === 'resolved' ? 'info' : 'default'
-                  }
-                  size="small"
-                />
-              </Box>
-              
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                {incident.description || 'Aucune description'}
-              </Typography>
-              
-              <Box mt={2}>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Signalé par: {incident.reportedBy?.username || 'Anonyme'}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Le {formatDate(incident.createdAt)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Confirmations: {incident.upvotes || 0} / Infirmations: {incident.downvotes || 0}
-                </Typography>
-              </Box>
-            </CardContent>
-            
-            <Divider />
-            
-            <CardActions>
-              <Button size="small" onClick={() => handleOpenDetails(incident)}>
-                Détails
-              </Button>
-              <Box sx={{ flexGrow: 1 }} />
-              {incident.status === 'pending' && (
-                <>
-                  <Tooltip title="Valider">
-                    <IconButton size="small" onClick={() => handleValidateIncident(incident.id)}>
-                      <CheckIcon color="success" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Rejeter">
-                    <IconButton size="small" onClick={() => handleRejectIncident(incident.id)}>
-                      <CloseIcon color="error" />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              )}
-              {incident.status !== 'resolved' && (
-                <Tooltip title="Marquer comme résolu">
-                  <IconButton size="small" onClick={() => handleResolveIncident(incident.id)}>
-                    <CheckIcon />
-                  </IconButton>
-                </Tooltip>
-              )}
-              <Tooltip title="Supprimer">
-                <IconButton size="small" onClick={() => handleOpenDeleteDialog(incident)}>
-                  <DeleteIcon />
-                </IconButton>
-              </Tooltip>
-            </CardActions>
-          </Card>
-        </Grid>
-      ))}
-    </Grid>
-  );
 
   return (
     <Box p={3}>
@@ -402,7 +248,7 @@ const IncidentsManagement = () => {
       </Box>
       
       {/* Contenu principal */}
-      {loading ? (
+      {isLoading ? (
         <Box display="flex" justifyContent="center" alignItems="center" height="400px">
           <CircularProgress />
         </Box>
@@ -411,7 +257,20 @@ const IncidentsManagement = () => {
           <Typography variant="body1">Aucun incident trouvé</Typography>
         </Paper>
       ) : viewMode === 'list' ? (
-        renderIncidentsList()
+        <Grid container spacing={3}>
+          {filteredIncidents.map(incident => (
+            <Grid item xs={12} sm={6} md={4} key={incident.id}>
+              <IncidentCard 
+                incident={incident}
+                onOpenDetails={handleOpenDetails}
+                onValidate={handleValidateIncident}
+                onReject={handleRejectIncident}
+                onResolve={handleResolveIncident}
+                onDelete={handleOpenDeleteDialog}
+              />
+            </Grid>
+          ))}
+        </Grid>
       ) : (
         <Paper sx={{ height: '70vh', overflow: 'hidden' }}>
           <IncidentMap 
@@ -422,73 +281,13 @@ const IncidentsManagement = () => {
       )}
       
       {/* Dialogue de filtres */}
-      <Dialog open={filtersDialogOpen} onClose={handleCloseDialog} maxWidth="sm">
-        <DialogTitle>Filtrer les incidents</DialogTitle>
-        <DialogContent>
-          <Box mt={2} display="flex" flexDirection="column" gap={3}>
-            <FormControl fullWidth>
-              <InputLabel>Type d'incident</InputLabel>
-              <Select
-                value={filters.type}
-                label="Type d'incident"
-                onChange={(e) => setFilters({...filters, type: e.target.value})}
-              >
-                <MenuItem value="all">Tous les types</MenuItem>
-                <MenuItem value="accident">Accident</MenuItem>
-                <MenuItem value="traffic_jam">Embouteillage</MenuItem>
-                <MenuItem value="road_closed">Route fermée</MenuItem>
-                <MenuItem value="police">Contrôle policier</MenuItem>
-                <MenuItem value="obstacle">Obstacle</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <FormControl fullWidth>
-              <InputLabel>Statut</InputLabel>
-              <Select
-                value={filters.status}
-                label="Statut"
-                onChange={(e) => setFilters({...filters, status: e.target.value})}
-              >
-                <MenuItem value="all">Tous les statuts</MenuItem>
-                <MenuItem value="pending">En attente</MenuItem>
-                <MenuItem value="validated">Validé</MenuItem>
-                <MenuItem value="rejected">Rejeté</MenuItem>
-                <MenuItem value="resolved">Résolu</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <FormControl fullWidth>
-              <InputLabel>Période</InputLabel>
-              <Select
-                value={filters.period}
-                label="Période"
-                onChange={(e) => setFilters({...filters, period: e.target.value})}
-              >
-                <MenuItem value="all">Toutes les périodes</MenuItem>
-                <MenuItem value="today">Aujourd'hui</MenuItem>
-                <MenuItem value="week">7 derniers jours</MenuItem>
-                <MenuItem value="month">30 derniers jours</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Annuler</Button>
-          <Button 
-            onClick={() => setFilters({ type: 'all', status: 'all', period: 'all' })}
-            color="secondary"
-          >
-            Réinitialiser
-          </Button>
-          <Button 
-            onClick={() => handleApplyFilters(filters)}
-            variant="contained" 
-            color="primary"
-          >
-            Appliquer
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <IncidentFiltersDialog
+        open={filtersDialogOpen}
+        initialFilters={filters}
+        onClose={handleCloseDialog}
+        onApply={handleApplyFilters}
+        onReset={handleResetFilters}
+      />
       
       {/* Dialogue de détails d'incident */}
       {selectedIncident && (
@@ -504,21 +303,13 @@ const IncidentsManagement = () => {
       )}
       
       {/* Dialogue de confirmation de suppression */}
-      <Dialog open={deleteDialogOpen} onClose={handleCloseDialog}>
-        <DialogTitle>Confirmer la suppression</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Êtes-vous sûr de vouloir supprimer cet incident ?
-            Cette action est irréversible.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Annuler</Button>
-          <Button onClick={handleDeleteIncident} variant="contained" color="error">
-            Supprimer
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onClose={handleCloseDialog}
+        onConfirm={handleDeleteIncident}
+        title="Confirmer la suppression"
+        message="Êtes-vous sûr de vouloir supprimer cet incident ? Cette action est irréversible."
+      />
       
       {/* Notifications */}
       <Snackbar

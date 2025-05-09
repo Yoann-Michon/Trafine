@@ -1,11 +1,12 @@
 import { Entity, ObjectIdColumn, Column, CreateDateColumn } from 'typeorm';
 import { ObjectId } from 'mongodb';
-import { RoadIncidentStatus, RoadIncidentType } from './type.enum';
+import { GeoJsonGeometry, RoadIncidentStatus, RoadIncidentType } from './type.enum';
+
 
 @Entity('incidents')
 export class Incident {
   @ObjectIdColumn()
-  id: ObjectId;
+  _id: ObjectId;
 
   @Column()
   type: RoadIncidentType;
@@ -14,10 +15,7 @@ export class Incident {
   description: string;
 
   @Column()
-  location: {
-    type: 'Point';
-    coordinates: [number, number];
-  };
+  location: GeoJsonGeometry;
 
   @Column()
   severity: number; // 1-5
@@ -26,13 +24,13 @@ export class Incident {
   status: RoadIncidentStatus;
 
   @Column()
-  reportedBy: ObjectId;
+  reportedBy: string;
 
   @Column({ default: [] })
-  confirmedBy?: ObjectId[];
+  confirmedBy?: string[];
 
   @Column({ default: [] })
-  rejectedBy?: ObjectId[];
+  rejectedBy?: string[];
 
   @CreateDateColumn()
   createdAt: Date;

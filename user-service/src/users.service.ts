@@ -6,7 +6,6 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import * as bcrypt from 'bcryptjs';
 import { Role } from './entities/role.enum';
-import { log } from 'console';
 
 @Injectable()
 export class UsersService {
@@ -117,13 +116,11 @@ export class UsersService {
         ],
         select: ['id', 'password', 'email', 'username', 'role', 'authProvider', 'authProviderId', 'createdAt']
       });
-      log('user', user);
       if (!user) {
         return null;
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
-      log('isPasswordValid', isPasswordValid);
       if (!isPasswordValid) {
         return null;
       }

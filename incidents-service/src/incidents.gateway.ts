@@ -1,11 +1,13 @@
-import { WebSocketGateway, SubscribeMessage, MessageBody, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
+import { WebSocketGateway, SubscribeMessage, MessageBody, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect, ConnectedSocket } from '@nestjs/websockets';
 import { IncidentsService } from './incidents.service';
 import { Server, Socket } from 'socket.io';
 import { CreateIncidentDto } from './dto/create-incident.dto';
 import { UpdateIncidentDto } from './dto/update-incident.dto';
-import { Logger, UseGuards, UseInterceptors } from '@nestjs/common';
-import { WsJwtAuthGuard, WsRolesGuard } from 'libs/utils/src';
-import { WsLoggingInterceptor } from 'libs/utils/src/guards/ws-logging.interceptor';
+import { Logger, UseGuards} from '@nestjs/common';
+import { WsJwtAuthGuard, RolesGuard, Role, Roles } from 'libs/utils/src';
+import { ObjectId } from 'mongodb';
+import { WsCurrentUser } from 'libs/utils/src/decorators/ws-current-user.decorator';
+import { WsUserOwnerGuard } from 'libs/utils/src/guards/ws-owner.guard';
 
 @WebSocketGateway({
   namespace: 'incidents', 
@@ -14,8 +16,7 @@ import { WsLoggingInterceptor } from 'libs/utils/src/guards/ws-logging.intercept
     credentials: true
   }
 })
-@UseGuards(WsJwtAuthGuard, WsRolesGuard)
-@UseInterceptors(WsLoggingInterceptor)
+@UseGuards(WsJwtAuthGuard, RolesGuard)
 export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(IncidentGateway.name);
   
@@ -33,9 +34,22 @@ export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('createIncident')
-  async handleCreate(@MessageBody() createIncidentDto: CreateIncidentDto) {
+  @Roles(Role.USER, Role.ADMIN)
+  async handleCreate(
+    @MessageBody() createIncidentDto: Omit<CreateIncidentDto, 'reportedBy'> & { reportedBy?: string },
+    @ConnectedSocket() client: Socket,
+    @WsCurrentUser() user: any
+  ) {
     try {
-      const incident = await this.incidentsService.create(createIncidentDto);
+      this.logger.log(`Creating incident by user ${user.id}`);
+      
+      // Assurez-vous que reportedBy est défini et converti en ObjectId
+      const finalDto = {
+        ...createIncidentDto,
+        reportedBy: user.id
+      };
+      
+      const incident = await this.incidentsService.create(finalDto);
       this.server.emit('incidentCreated', incident);
       return { success: true, data: incident };
     } catch (error) {
@@ -78,9 +92,36 @@ export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('updateIncident')
-  async handleUpdate(@MessageBody() updateIncidentDto: UpdateIncidentDto) {
+  @Roles(Role.USER, Role.ADMIN)
+  async handleUpdate(
+    @MessageBody() updateData: UpdateIncidentDto & { userId?: string },
+    @ConnectedSocket() client: Socket,
+    @WsCurrentUser() user: any
+  ) {
     try {
-      const updated = await this.incidentsService.update(updateIncidentDto.id, updateIncidentDto);
+      this.logger.log(`Updating incident ${updateData.id} by user ${user.id}`);
+      
+      // Vérifier si l'utilisateur est le propriétaire ou a des droits suffisants
+      // Si ce n'est pas l'admin, vérifier s'il est le propriétaire
+      if (user.role !== Role.ADMIN) {
+        const incident = await this.incidentsService.findOne(updateData.id);
+        const reportedById = incident!.reportedBy
+          ? incident!.reportedBy.toString() 
+          : incident!.reportedBy;
+          
+        if (reportedById !== user.id && user.role === Role.USER) {
+          throw new Error('You can only update your own incidents');
+        }
+      }
+      
+      // Assurez-vous que l'ID est toujours présent dans l'objet updateData
+      const updated = await this.incidentsService.update(
+        updateData.id, 
+        { ...updateData, id: updateData.id }, 
+        user.id, 
+        user.role
+      );
+      
       this.server.emit('incidentUpdated', updated);
       return { success: true, data: updated };
     } catch (error) {
@@ -90,9 +131,16 @@ export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('deleteIncident')
-  async handleDelete(@MessageBody() id: string) {
+  @Roles(Role.ADMIN, Role.ADMIN)
+  async handleDelete(
+    @MessageBody() id: string,
+    @ConnectedSocket() client: Socket,
+    @WsCurrentUser() user: any
+  ) {
     try {
-      await this.incidentsService.remove(id);
+      this.logger.log(`Deleting incident ${id} by user ${user.id}`);
+      
+      await this.incidentsService.remove(id, user.id, user.role);
       this.server.emit('incidentDeleted', id);
       return { success: true };
     } catch (error) {
@@ -133,6 +181,57 @@ export class IncidentGateway implements OnGatewayConnection, OnGatewayDisconnect
       return { success: true, data: incidents };
     } catch (error) {
       this.logger.error(`Error finding incidents along route: ${error.message}`, error.stack);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  @SubscribeMessage('findIncidentsByUser')
+  @UseGuards(WsUserOwnerGuard)
+  async handleFindByUser(
+    @MessageBody() userId: string,
+    @WsCurrentUser() user: any
+  ) {
+    try {
+      this.logger.log(`Finding incidents reported by user ${userId}`);
+      
+      const incidents = await this.incidentsService.findByReportedUser(userId);
+      return { success: true, data: incidents };
+    } catch (error) {
+      this.logger.error(`Error finding incidents by user ${userId}: ${error.message}`, error.stack);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  @SubscribeMessage('findConfirmedByUser') 
+  @UseGuards(WsUserOwnerGuard)
+  async handleFindConfirmedByUser(
+    @MessageBody() userId: string,
+    @WsCurrentUser() user: any
+  ) {
+    try {
+      this.logger.log(`Finding incidents confirmed by user ${userId}`);
+      
+      const incidents = await this.incidentsService.findConfirmedByUser(userId);
+      return { success: true, data: incidents };
+    } catch (error) {
+      this.logger.error(`Error finding incidents confirmed by user ${userId}: ${error.message}`, error.stack);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  @SubscribeMessage('findRejectedByUser')
+  @UseGuards(WsUserOwnerGuard)
+  async handleFindRejectedByUser(
+    @MessageBody() userId: string,
+    @WsCurrentUser() user: any
+  ) {
+    try {
+      this.logger.log(`Finding incidents rejected by user ${userId}`);
+      
+      const incidents = await this.incidentsService.findRejectedByUser(userId);
+      return { success: true, data: incidents };
+    } catch (error) {
+      this.logger.error(`Error finding incidents rejected by user ${userId}: ${error.message}`, error.stack);
       return { success: false, error: error.message };
     }
   }

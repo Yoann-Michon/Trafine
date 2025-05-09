@@ -7,12 +7,25 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { IncidentGateway } from './incidents.gateway';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TomTomService } from './tomtom.service';
+import { UtilsModule } from 'libs/utils/src';
+import { JwtModule } from '@nestjs/jwt';
+import { HttpModule } from '@nestjs/axios';
 
 
 
 @Module({
   imports: [
+    HttpModule,
     ConfigModule.forRoot({ envFilePath: '.env' }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: configService.get<string>('JWT_EXPIRATION') },
+      }),
+    }),
+    UtilsModule.forRoot(),
     ClientsModule.registerAsync([
       {
         name: 'USER_SERVICE',
@@ -25,8 +38,25 @@ import { TomTomService } from './tomtom.service';
             queue: configService.get<string>('RABBITMQ_USER_QUEUE'),
             queueOptions: { durable: true },
           },
+          
         }),
-      },]),
+        
+      },
+      {
+        name: 'NAVIGATION_SERVICE',
+        imports: [ConfigModule],
+        inject: [ConfigService],
+        useFactory: async (configService: ConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [configService.get<string>('RABBITMQ_HOST')!],
+            queue: configService.get<string>('RABBITMQ_NAVIGATION_QUEUE'),
+            queueOptions: { durable: true },
+          },
+          
+        }),
+        
+      }]),
     TypeOrmModule.forFeature([Incident]),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
